@@ -12,6 +12,21 @@ char *basefilename(char *pathname)
   }
 }
 
+void reverseAndPrint(FILE *fpinput, FILE *fpoutput) {
+  // Both FILEs should be checked if NULL beforehand
+  char *alllines = (char *) malloc(1000);
+  char *line = NULL;
+  size_t linecap = 0;
+  ssize_t linelen;
+  while ((linelen = getline(&line, &linecap, fpinput)) > 0) {
+    alllines = (char *) realloc(alllines, sizeof(alllines) + sizeof(line));
+    strcat(line, alllines);
+    strcpy(alllines, line);
+  }
+  fprintf(fpoutput, "%s", alllines);
+  free(alllines);
+}
+
 int main(int argc, char *argv[])
 {
   if (argc > 3) {
@@ -32,17 +47,7 @@ int main(int argc, char *argv[])
 	  fprintf(stderr, "reverse: cannot open file '%s'\n", argv[2]);
 	  exit(1);
 	} else {
-	  char *alllines = (char *) malloc(1000);
-	  char *line = NULL;
-	  size_t linecap = 0;
-	  ssize_t linelen;
-	  while ((linelen = getline(&line, &linecap, fpinput)) > 0) {
-	    alllines = (char *) realloc(alllines, sizeof(alllines) + sizeof(line));
-	    strcat(line, alllines);
-	    strcpy(alllines, line);
-	  }
-	  fprintf(fpoutput, "%s", alllines);
-	  free(alllines);
+	  reverseAndPrint(fpinput, fpoutput);
 	  fclose(fpinput);
 	  fclose(fpoutput);
 	}
@@ -54,30 +59,10 @@ int main(int argc, char *argv[])
       fprintf(stderr, "reverse: cannot open file '%s'\n", argv[1]);
       exit(1);
     } else {
-      char *alllines = (char *) malloc(1000);
-      char *line = NULL;
-      size_t linecap = 0;
-      ssize_t linelen;
-      while ((linelen = getline(&line, &linecap, fp)) > 0) {
-	alllines = (char *) realloc(alllines, sizeof(alllines) + sizeof(line));
-	strcat(line, alllines);
-	strcpy(alllines, line);
-      }
-      fprintf(stdout, "%s", alllines);
-      free(alllines);
+      reverseAndPrint(fp, stdout);
       fclose(fp);
     }
   } else {
-    char *alllines = (char *) malloc(1000);
-    char *line = NULL;
-    size_t linecap = 0;
-    ssize_t linelen;
-    while ((linelen = getline(&line, &linecap, stdin)) > 0) {
-      alllines = (char *) realloc(alllines, sizeof(alllines) + sizeof(line));
-      strcat(line, alllines);
-      strcpy(alllines, line);
-    }
-    fprintf(stdout, "%s", alllines);
-    free(alllines);
+    reverseAndPrint(stdin, stdout);
   }
 }
