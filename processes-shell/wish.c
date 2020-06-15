@@ -11,7 +11,7 @@ void printError()
   exit(1);
 }
 
-void runCommand(char *path, char *line)
+void runCommand(char *path, char **command_w_args)
 {
   int canAccess = access(path, X_OK);
   if (canAccess == 0) {
@@ -19,12 +19,12 @@ void runCommand(char *path, char *line)
     if (rc < 0) {
       printError();
     } else if (rc == 0) {
-      char cmd[] = "";
-      strcpy(cmd, path);
-      strcat(cmd, "/");
-      strcat(cmd, line);
-      char *myargs[] = {cmd, NULL};
-      execv(myargs[0], myargs);
+      char command_w_path[] = "";
+      strcpy(command_w_path, path);
+      strcat(command_w_path, "/");
+      strcat(command_w_path, command_w_args[0]);
+      command_w_args[0] = command_w_path;
+      execv(command_w_args[0], command_w_args);
       // Anything past the execv command will be reached only if there was an error
       printError();
     } else {
@@ -41,14 +41,31 @@ void runInteractiveMode()
   char *line = NULL;
   size_t linecap = 0;
   ssize_t linelen;
+  char **command_w_args;
+  int command_index;
   printf("wish> ");
   while ((linelen = getline(&line, &linecap, stdin)) > 0) {
-    char *command = strsep(&line, "\n");
-    if (strcmp(command, "exit") == 0) {
-      exit(0);
-    } else {
-      runCommand(path, command);
+    line = strsep(&line, "\n");
+    // method found here: http://c-for-dummies.com/blog/wp-content/uploads/2016/02/0220b.c
+    while ( (command_w_args[command_index] = strsep(&line, " ")) != NULL) {
+      command_index += 1;
     }
+    if (strcmp(command_w_args[0], "exit") == 0) {
+      if (command_index == 1) {
+	// exit with no arguments is valid
+	exit(0);
+      } else {
+	// Any thing else is invalid
+	printError();
+      }
+    } else {
+      runCommand(path, command_w_args);
+    }
+
+    // Clear command_w_args and command_index
+    memset(&command_w_args[0], 0, sizeof(command_w_args));
+    command_index = 0;
+
     printf("wish> ");
   }
 }
