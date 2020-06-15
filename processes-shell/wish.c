@@ -52,13 +52,22 @@ void runInteractiveMode()
     }
     if (strcmp(command_w_args[0], "exit") == 0) {
       if (command_index == 1) {
-	// exit with no arguments is valid
+	// exit is only valid with no arguments
 	exit(0);
       } else {
-	// Any thing else is invalid
 	printError();
       }
-    } else {
+    } else if (strcmp(command_w_args[0], "cd") == 0) {
+	if (command_index == 2) {
+	  //cd is only valid with one argument
+	  if ((chdir(command_w_args[1])) == -1){
+	    printError();
+	  }
+	} else {
+	  printError();
+	}
+    }
+    else {
       runCommand(path, command_w_args);
     }
 
