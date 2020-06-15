@@ -43,7 +43,12 @@ void runInteractiveMode()
   ssize_t linelen;
   printf("wish> ");
   while ((linelen = getline(&line, &linecap, stdin)) > 0) {
-    runCommand(path, strsep(&line, "\n"));
+    char *command = strsep(&line, "\n");
+    if (strcmp(command, "exit") == 0) {
+      exit(0);
+    } else {
+      runCommand(path, command);
+    }
     printf("wish> ");
   }
 }
