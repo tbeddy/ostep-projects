@@ -66,17 +66,41 @@ void runInteractiveMode()
 	printError();
       }
     } else if (strcmp(command_w_args[0], "cd") == 0) {
-	if (command_index == 2) {
-	  //cd is only valid with one argument
-	  if ((chdir(command_w_args[1])) == -1){
-	    printError();
-	  }
-	} else {
+      if (command_index == 2) {
+	// cd is only valid with one argument
+	if ((chdir(command_w_args[1])) == -1) {
 	  printError();
 	}
-    }
-    else {
-      runCommand(path, command_w_args);
+      } else {
+	printError();
+      }
+    } else if (strcmp(command_w_args[0], "path") == 0) {
+      if (command_index == 1) {
+	// Erase all paths
+	memset(&paths[0], 0, sizeof(paths));
+	paths_len = 0;
+      } else {
+	for (int i = 0; i < command_index-1; i++) {
+	  paths[i] = command_w_args[i+1];
+	}
+	paths_len = command_index - 1;
+      }
+    } else {
+      if (paths_len == 0) {
+	// There are no paths, so only built-in commands could have worked
+	printError();
+      } else {
+	for (int i = 0; i < paths_len; i++) {
+	  int is_command_successful = runCommand(paths[i], command_w_args);
+	  if (is_command_successful == 0) {
+	    break;
+	  }
+	  if (i == paths_len-1) {
+	    // All paths have been tested, so there's an error
+	    printError();
+	  }
+	}
+      }
     }
 
     // Clear command_w_args and command_index
