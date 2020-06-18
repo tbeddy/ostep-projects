@@ -10,43 +10,52 @@ void printError()
   write(STDERR_FILENO, error_message, strlen(error_message));
 }
 
-void runCommand(char *path, char **command_w_args)
+int runCommand(char *path, char **command_w_args)
 {
-  int canAccess = access(path, X_OK);
-  if (canAccess == 0) {
+  char command_w_path[100] = "";
+  int can_access = access(path, X_OK);
+  int status;
+  if (can_access == 0) {
     int rc = fork();
     if (rc < 0) {
       printError();
+      exit(1);
     } else if (rc == 0) {
-      char command_w_path[] = "";
       strcpy(command_w_path, path);
       strcat(command_w_path, "/");
       strcat(command_w_path, command_w_args[0]);
       command_w_args[0] = command_w_path;
-      execv(command_w_args[0], command_w_args);
+      int errno = execv(command_w_args[0], command_w_args);
       // Anything past the execv command will be reached only if there was an error
-      printError();
+      exit(errno);
     } else {
-      int rc_wait = wait(NULL);
+      int rc_wait = wait(&status);
+      return status;
     }
   } else {
+    // Can't access path
     printError();
+    return 1;
   }
+  return 0;
 }
 
 void runInteractiveMode()
 {
-  char *path = "/bin";
+  char *paths[] = {"/bin"};
   char *line = NULL;
   size_t linecap = 0;
   ssize_t linelen;
   char **command_w_args;
-  int command_index;
+  int command_index = 0;
+  int paths_len = 1;
+
   printf("wish> ");
+
   while ((linelen = getline(&line, &linecap, stdin)) > 0) {
     line = strsep(&line, "\n");
     // method found here: http://c-for-dummies.com/blog/wp-content/uploads/2016/02/0220b.c
-    while ( (command_w_args[command_index] = strsep(&line, " ")) != NULL) {
+    while ((command_w_args[command_index] = strsep(&line, " ")) != NULL) {
       command_index += 1;
     }
     if (strcmp(command_w_args[0], "exit") == 0) {
