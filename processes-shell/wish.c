@@ -18,7 +18,6 @@ int runCommand(char *path, char **command_w_args)
   if (can_access == 0) {
     int rc = fork();
     if (rc < 0) {
-      printError();
       exit(1);
     } else if (rc == 0) {
       strcpy(command_w_path, path);
@@ -27,33 +26,39 @@ int runCommand(char *path, char **command_w_args)
       command_w_args[0] = command_w_path;
       int errno = execv(command_w_args[0], command_w_args);
       // Anything past the execv command will be reached only if there was an error
-      exit(errno);
+      //exit(errno);
+      return errno;
     } else {
       int rc_wait = wait(&status);
       return status;
     }
   } else {
     // Can't access path
-    printError();
-    return 1;
+    exit(1);
   }
   return 0;
 }
 
-void runInteractiveMode()
+void runCommandLoop(FILE *fpinput)
 {
   char *paths[] = {"/bin"};
   char *line = NULL;
   size_t linecap = 0;
   ssize_t linelen;
-  char **command_w_args;
+  char *command_w_args[100] = {};
   int command_index = 0;
   int paths_len = 1;
 
-  printf("wish> ");
+  if (fpinput == stdin) {
+    printf("wish> ");
+  }
 
-  while ((linelen = getline(&line, &linecap, stdin)) > 0) {
-    line = strsep(&line, "\n");
+  while ((linelen = getline(&line, &linecap, fpinput)) > 0) {
+    if (strcmp(line, "\n") == 0) {
+      exit(0);
+    } else {
+      line = strsep(&line, "\n");
+    }
     // method found here: http://c-for-dummies.com/blog/wp-content/uploads/2016/02/0220b.c
     while ((command_w_args[command_index] = strsep(&line, " ")) != NULL) {
       command_index += 1;
@@ -107,7 +112,9 @@ void runInteractiveMode()
     memset(&command_w_args[0], 0, sizeof(command_w_args));
     command_index = 0;
 
-    printf("wish> ");
+    if (fpinput == stdin) {
+      printf("wish> ");
+    }
   }
 }
 
@@ -115,12 +122,17 @@ int main(int argc, char *argv[])
 {
   if (argc == 2) {
     // run batch file
-    printf("Batch file option not yet implemented\n");
+    FILE *fp = fopen(argv[1], "r");
+    if (fp == NULL) {
+      exit(1);
+    } else {
+      runCommandLoop(fp);
+    }
   } else if (argc == 1) {
     // enter interactive mode
-    runInteractiveMode();
+    runCommandLoop(stdin);
   } else {
-    printError();
+    exit(1);
   }
   return 0;
 }
