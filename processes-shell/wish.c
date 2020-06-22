@@ -101,7 +101,7 @@ int runCommand(char *path, command command)
       close(save_out);
       close(save_err);
 
-      return errno;
+      exit(errno);
     } else {
       int rc_wait = wait(&status);
       return status;
