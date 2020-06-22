@@ -130,13 +130,11 @@ void runThroughEachPath(command command, char *paths[], int paths_len)
 
 void runCommandLoop(FILE *fpinput)
 {
-  char *paths[] = {"/bin"};
+  char *paths[100] = {"/bin"};
+  int paths_len = 1;
   char *line = NULL;
   size_t linecap = 0;
   ssize_t linelen;
-  char *command_w_args[100] = {};
-  int command_index = 0;
-  int paths_len = 1;
 
   printPrompt(fpinput);
 
@@ -147,9 +145,10 @@ void runCommandLoop(FILE *fpinput)
       line = strsep(&line, "\n");
     }
 
+    char *separated_line[100] = {};
+    int command_index = 0;
     command command;
     int count = 0;
-    char *separated_line[100];
 
     while ((separated_line[count] = strsep(&line, ">")) != NULL) {
       count += 1;
@@ -202,7 +201,7 @@ void runCommandLoop(FILE *fpinput)
       command_index += 1;
     }
 
-    // Remove white space from each string in command_w_args
+    // Remove white space from each string in separated_line
     for (int i = 0; i < command_index; i++) {
       command.program_w_args[i] = trimWhiteSpace(command.program_w_args[i]);
     }
@@ -229,10 +228,11 @@ void runCommandLoop(FILE *fpinput)
 	memset(&paths[0], 0, sizeof(paths));
 	paths_len = 0;
       } else {
+	paths_len = 0;
 	for (int i = 0; i < command_index-1; i++) {
 	  paths[i] = command.program_w_args[i+1];
+	  paths_len += 1;
 	}
-	paths_len = command_index - 1;
       }
     } else {
       // It must not be a built-in command
@@ -243,10 +243,6 @@ void runCommandLoop(FILE *fpinput)
 	runThroughEachPath(command, paths, paths_len);
       }
     }
-
-    // Clear command_w_args and command_index
-    memset(&command_w_args[0], 0, sizeof(command_w_args));
-    command_index = 0;
 
     printPrompt(fpinput);
   }
