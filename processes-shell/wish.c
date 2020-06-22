@@ -11,8 +11,11 @@
 
 typedef struct {
   char *program_w_args[100];
+  int arg_count;
   int output;
 } command;
+
+const command EMPTY_COMMAND = {{}, -1};
 
 void printError()
 {
@@ -64,6 +67,65 @@ char *trimWhiteSpace(char *str)
   return str;
 }
 
+command createCommand(char *line)
+{
+  char *separated_line[100] = {};
+  int arg_count = 0;
+  command command;
+  int count = 0;
+
+  while ((separated_line[count] = strsep(&line, ">")) != NULL) {
+    count += 1;
+  }
+
+  if (count > 2) {
+    // There are too many redirection commands
+    return EMPTY_COMMAND;
+  } else if (count == 2) {
+    if (strcmp(separated_line[0], "") == 0) {
+      // There's nothing before the redirection command
+      return EMPTY_COMMAND;
+    } else if (strcmp(separated_line[1], "") == 0) {
+      // There's nothing after the redirection command
+      return EMPTY_COMMAND;
+    } else {
+      separated_line[1] = trimWhiteSpace(separated_line[1]);
+      if (isThereWhiteSpace(separated_line[1])) {
+	// There's more than one file being passed to the redirection command
+	return EMPTY_COMMAND;
+      }
+      // Open what's after the redirection command as a file
+      mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+      int output = open(trimWhiteSpace(separated_line[1]),
+			O_RDWR | O_CREAT | O_TRUNC, mode);
+      if (output == -1) {
+	return EMPTY_COMMAND;
+      } else {
+	command.output = output;
+      }
+    }
+  } else {
+    // There is no redirection command
+    command.output = fileno(stdout);
+  }
+
+  separated_line[0] = trimWhiteSpace(separated_line[0]);
+  // Method found here: http://c-for-dummies.com/blog/wp-content/uploads/2016/02/0220b.c
+  while ((command.program_w_args[arg_count] = strsep(&separated_line[0], " ")) != NULL) {
+    arg_count += 1;
+  }
+
+  // Remove white space from each string in separated_line
+  for (int i = 0; i < arg_count; i++) {
+    command.program_w_args[i] = trimWhiteSpace(command.program_w_args[i]);
+  }
+
+  // Don't count the actual program
+  command.arg_count = arg_count - 1;
+
+  return command;
+}
+
 int runCommand(char *path, command command)
 {
   char program_w_path[100] = "";
@@ -71,7 +133,7 @@ int runCommand(char *path, command command)
   int status;
   int save_out;
   int save_err;
-  
+
   if (can_access == 0) {
     int rc = fork();
     if (rc < 0) {
@@ -113,7 +175,7 @@ int runCommand(char *path, command command)
   return 0;
 }
 
-void runThroughEachPath(command command, char *paths[], int paths_len)
+void runThroughEachPath(command command, char *paths[100], int paths_len)
 {
   for (int i = 0; i < paths_len; i++) {
     int is_command_successful = runCommand(paths[i], command);
@@ -145,76 +207,22 @@ void runCommandLoop(FILE *fpinput)
       line = strsep(&line, "\n");
     }
 
-    char *separated_line[100] = {};
-    int command_index = 0;
-    command command;
-    int count = 0;
-
-    while ((separated_line[count] = strsep(&line, ">")) != NULL) {
-      count += 1;
-    }
-
-    if (count > 2) {
-      // There are too many redirection commands
+    command command = createCommand(line);
+    if (command.output == EMPTY_COMMAND.output) {
       printError();
       printPrompt(fpinput);
       continue;
-    } else if (count == 2) {
-      if (strcmp(separated_line[0], "") == 0) {
-	// There's nothing before the redirection command
-	printError();
-	printPrompt(fpinput);
-	continue;
-      } else if (strcmp(separated_line[1], "") == 0) {
-	// There's nothing after the redirection command
-	printError();
-	printPrompt(fpinput);
-	continue;
-      } else {
-	separated_line[1] = trimWhiteSpace(separated_line[1]);
-	// There's more than one file being passed to the redirection command
-	if (isThereWhiteSpace(separated_line[1])) {
-	  printError();
-	  printPrompt(fpinput);
-	  continue;
-	}
-	// Open what's after the redirection command as a file
-	mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-	int output = open(trimWhiteSpace(separated_line[1]),
-			  O_RDWR | O_CREAT | O_TRUNC, mode);
-	if (output == -1) {
-	  printError();
-	  printPrompt(fpinput);
-	  continue;
-	} else {
-	  command.output = output;
-	}
-      }
-    } else {
-      // There is no redirection command
-      command.output = fileno(stdout);
-    }
-
-    separated_line[0] = trimWhiteSpace(separated_line[0]);
-    // Method found here: http://c-for-dummies.com/blog/wp-content/uploads/2016/02/0220b.c
-    while ((command.program_w_args[command_index] = strsep(&separated_line[0], " ")) != NULL) {
-      command_index += 1;
-    }
-
-    // Remove white space from each string in separated_line
-    for (int i = 0; i < command_index; i++) {
-      command.program_w_args[i] = trimWhiteSpace(command.program_w_args[i]);
     }
 
     if (strcmp(command.program_w_args[0], "exit") == 0) {
-      if (command_index == 1) {
+      if (command.arg_count == 0) {
 	// exit is only valid with no arguments
 	exit(0);
       } else {
 	printError();
       }
     } else if (strcmp(command.program_w_args[0], "cd") == 0) {
-      if (command_index == 2) {
+      if (command.arg_count == 1) {
 	// cd is only valid with one argument
 	if ((chdir(command.program_w_args[1])) == -1) {
 	  printError();
@@ -223,14 +231,14 @@ void runCommandLoop(FILE *fpinput)
 	printError();
       }
     } else if (strcmp(command.program_w_args[0], "path") == 0) {
-      if (command_index == 1) {
+      if (command.arg_count == 0) {
 	// Erase all paths
 	memset(&paths[0], 0, sizeof(paths));
 	paths_len = 0;
       } else {
 	paths_len = 0;
-	for (int i = 0; i < command_index-1; i++) {
-	  paths[i] = command.program_w_args[i+1];
+	for (int i = 0; i < command.arg_count; i++) {
+	  paths[i] = strdup(command.program_w_args[i+1]);
 	  paths_len += 1;
 	}
       }
