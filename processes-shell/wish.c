@@ -13,9 +13,10 @@ typedef struct {
   char *program_w_args[100];
   int arg_count;
   int output;
+  int output_err;
 } command;
 
-const command EMPTY_COMMAND = {{}, -1};
+const command EMPTY_COMMAND = {{}, 0, -1, -1};
 
 void printError()
 {
@@ -102,11 +103,13 @@ command createCommand(char *line)
 	return EMPTY_COMMAND;
       } else {
 	command.output = output;
+	command.output_err = output;
       }
     }
   } else {
     // There is no redirection command
     command.output = fileno(stdout);
+    command.output_err= fileno(stderr);
   }
 
   separated_line[0] = trimWhiteSpace(separated_line[0]);
@@ -129,10 +132,15 @@ command createCommand(char *line)
 int runCommand(char *path, command command)
 {
   char program_w_path[100] = "";
-  int can_access = access(path, X_OK);
+  int can_access;
   int status;
   int save_out;
   int save_err;
+
+  strcpy(program_w_path, path);
+  strcat(program_w_path, "/");
+  strcat(program_w_path, command.program_w_args[0]);
+  can_access = access(program_w_path, X_OK);
 
   if (can_access == 0) {
     int rc = fork();
@@ -145,12 +153,9 @@ int runCommand(char *path, command command)
       if (-1 == dup2(command.output, fileno(stdout))) {
 	return errno;
       }
-      if (-1 == dup2(command.output, fileno(stderr))) {
+      if (-1 == dup2(command.output_err, fileno(stderr))) {
 	return errno;
       }
-      strcpy(program_w_path, path);
-      strcat(program_w_path, "/");
-      strcat(program_w_path, command.program_w_args[0]);
       command.program_w_args[0] = program_w_path;
       execv(command.program_w_args[0], command.program_w_args);
 
@@ -158,6 +163,7 @@ int runCommand(char *path, command command)
       fflush(stdout);
       fflush(stderr);
       close(command.output);
+      close(command.output_err);
       dup2(save_out, fileno(stdout));
       dup2(save_err, fileno(stderr));
       close(save_out);
@@ -183,7 +189,7 @@ void runThroughEachPath(command command, char *paths[100], int paths_len)
       // No more paths need to be tested
       break;
     }
-    if (i == paths_len-1) {
+    if ((is_command_successful == 1) && (i == paths_len-1)) {
       // All paths have been tested, so there's an error
       printError();
     }
