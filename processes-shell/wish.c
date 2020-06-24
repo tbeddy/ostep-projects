@@ -78,12 +78,14 @@ char *trimWhiteSpace(char *str)
   return str;
 }
 
-command createCommand(char *line)
+command createCommand(char *line, char *paths[100], int paths_len)
 {
   char *separated_line[100] = {};
   int arg_count = 0;
   command command;
   int count = 0;
+  char program_w_path[100] = "";
+  int can_access;
 
   while ((separated_line[count] = strsep(&line, ">")) != NULL) {
     count += 1;
@@ -136,27 +138,47 @@ command createCommand(char *line)
   // Don't count the actual program
   command.arg_count = arg_count - 1;
 
-  return command;
+  // Find which path (if any) contains the command's program
+  // Skip if the command is a built-in
+  if ((strcmp(command.program_w_args[0], "exit") == 0) ||
+      (strcmp(command.program_w_args[0], "cd") == 0) ||
+      (strcmp(command.program_w_args[0], "path") == 0)) {
+    return command;
+  } else {
+    for (int i = 0; i < paths_len; i++) {
+      strcpy(program_w_path, paths[i]);
+      strcat(program_w_path, "/");
+      strcat(program_w_path, command.program_w_args[0]);
+      can_access = access(program_w_path, X_OK);
+      if (can_access == 0) {
+	// No more paths need to be tested
+	command.program_w_args[0] = strdup(program_w_path);
+	break;
+      }
+      if ((can_access == -1) && (i == paths_len-1)) {
+	// All paths have been tested, so there's an error
+	return EMPTY_COMMAND;
+      }
+    }
+    return command;
+  }
 }
 
-int runCommand(char *path, command command)
+int runCommands(command commands[], int command_count)
 {
-  char program_w_path[100] = "";
-  int can_access;
+  int child_pids[100];
   int status;
-  int save_out;
-  int save_err;
+  
+  for (int i = 0; i < command_count; i++) {
+    command command = commands[i];
+    int save_out;
+    int save_err;
 
-  strcpy(program_w_path, path);
-  strcat(program_w_path, "/");
-  strcat(program_w_path, command.program_w_args[0]);
-  can_access = access(program_w_path, X_OK);
-
-  if (can_access == 0) {
-    int rc = fork();
+    int rc = child_pids[i] = fork();
     if (rc < 0) {
       return 1;
     } else if (rc == 0) {
+      child_pids[i] = getpid();
       // Redirection logic cribbed from here: https://stackoverflow.com/a/8517401
       save_out = dup(fileno(stdout));
       save_err = dup(fileno(stderr));
@@ -166,9 +188,9 @@ int runCommand(char *path, command command)
       if (-1 == dup2(command.output_err, fileno(stderr))) {
 	return errno;
       }
-      command.program_w_args[0] = program_w_path;
+      
       execv(command.program_w_args[0], command.program_w_args);
-
+      
       // Anything past the execv command will be reached only if there was an error
       fflush(stdout);
       fflush(stderr);
@@ -178,31 +200,14 @@ int runCommand(char *path, command command)
       dup2(save_err, fileno(stderr));
       close(save_out);
       close(save_err);
-
+      
       exit(errno);
-    } else {
-      int rc_wait = wait(&status);
-      return status;
     }
-  } else {
-    // Can't access path
-    return 1;
   }
-  return 0;
-}
-
-void runThroughEachPath(command command, char *paths[100], int paths_len)
-{
-  for (int i = 0; i < paths_len; i++) {
-    int is_command_successful = runCommand(paths[i], command);
-    if (is_command_successful == 0) {
-      // No more paths need to be tested
-      break;
-    }
-    if ((is_command_successful == 1) && (i == paths_len-1)) {
-      // All paths have been tested, so there's an error
-      printError();
-    }
+  for (int i = 0; i < command_count; i++) {
+    int rc_wait = waitpid((pid_t) child_pids[i], &status, 0);
+    printf("exit status: %d\n", status);
+    return status;
   }
 }
 
@@ -232,7 +237,7 @@ void runCommandLoop(FILE *fpinput)
     }
 
     for (int i = 0; i < command_count; i++) {
-      command command = createCommand(possible_commands[i]);
+      command command = createCommand(possible_commands[i], paths, paths_len);
       commands[i] = command;
     }
 
@@ -278,12 +283,14 @@ void runCommandLoop(FILE *fpinput)
 	  // There are no paths, so only built-in commands could have worked
 	  printError();
 	} else {
-	  runThroughEachPath(commands[0], paths, paths_len);
+	  if (0 != runCommands(commands, command_count)) {
+	    printError();
+	  }
 	}
       }
     } else {
-      for (int i = 0; i < command_count; i++) {
-	runThroughEachPath(commands[i], paths, paths_len);
+      if (0 != runCommands(commands, command_count)) {
+	printError();
       }
     }
 
