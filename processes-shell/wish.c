@@ -31,6 +31,16 @@ void printPrompt(FILE *fpinput)
   }
 }
 
+bool isAnyCommandEmpty(command *commands, int command_count)
+{
+  for (int i = 0; i < command_count; i++) {
+    if (commands[i].output == EMPTY_COMMAND.output) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool isThereWhiteSpace(char *list)
 {
   for (int i = 0; i < strlen(list); i++) {
@@ -213,48 +223,67 @@ void runCommandLoop(FILE *fpinput)
       line = strsep(&line, "\n");
     }
 
-    command command = createCommand(line);
-    if (command.output == EMPTY_COMMAND.output) {
+    command commands[100];
+    char *possible_commands[100];
+    int command_count = 0;
+    
+    while ((possible_commands[command_count] = strsep(&line, "&")) != NULL) {
+      command_count += 1;
+    }
+
+    for (int i = 0; i < command_count; i++) {
+      command command = createCommand(possible_commands[i]);
+      commands[i] = command;
+    }
+
+    if (isAnyCommandEmpty(commands, command_count)) {
       printError();
       printPrompt(fpinput);
       continue;
     }
 
-    if (strcmp(command.program_w_args[0], "exit") == 0) {
-      if (command.arg_count == 0) {
-	// exit is only valid with no arguments
-	exit(0);
-      } else {
-	printError();
-      }
-    } else if (strcmp(command.program_w_args[0], "cd") == 0) {
-      if (command.arg_count == 1) {
-	// cd is only valid with one argument
-	if ((chdir(command.program_w_args[1])) == -1) {
+    if (command_count == 1) {
+      // If there's only one command, then built-in commands are available
+      if (strcmp(commands[0].program_w_args[0], "exit") == 0) {
+	if (commands[0].arg_count == 0) {
+	  // exit is only valid with no arguments
+	  exit(0);
+	} else {
 	  printError();
 	}
+      } else if (strcmp(commands[0].program_w_args[0], "cd") == 0) {
+	if (commands[0].arg_count == 1) {
+	  // cd is only valid with one argument
+	  if ((chdir(commands[0].program_w_args[1])) == -1) {
+	    printError();
+	  }
+	} else {
+	  printError();
+	}
+      } else if (strcmp(commands[0].program_w_args[0], "path") == 0) {
+	if (commands[0].arg_count == 0) {
+	  // Erase all paths
+	  memset(&paths[0], 0, sizeof(paths));
+	  paths_len = 0;
+	} else {
+	  paths_len = 0;
+	  for (int i = 0; i < commands[0].arg_count; i++) {
+	    paths[i] = strdup(commands[0].program_w_args[i+1]);
+	    paths_len += 1;
+	  }
+	}
       } else {
-	printError();
-      }
-    } else if (strcmp(command.program_w_args[0], "path") == 0) {
-      if (command.arg_count == 0) {
-	// Erase all paths
-	memset(&paths[0], 0, sizeof(paths));
-	paths_len = 0;
-      } else {
-	paths_len = 0;
-	for (int i = 0; i < command.arg_count; i++) {
-	  paths[i] = strdup(command.program_w_args[i+1]);
-	  paths_len += 1;
+	// It must not be a built-in command
+	if (paths_len == 0) {
+	  // There are no paths, so only built-in commands could have worked
+	  printError();
+	} else {
+	  runThroughEachPath(commands[0], paths, paths_len);
 	}
       }
     } else {
-      // It must not be a built-in command
-      if (paths_len == 0) {
-	// There are no paths, so only built-in commands could have worked
-	printError();
-      } else {
-	runThroughEachPath(command, paths, paths_len);
+      for (int i = 0; i < command_count; i++) {
+	runThroughEachPath(commands[i], paths, paths_len);
       }
     }
 
