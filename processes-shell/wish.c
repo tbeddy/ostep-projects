@@ -109,8 +109,7 @@ command createCommand(char *line, char *paths[100], int paths_len)
       }
       // Open what's after the redirection command as a file
       mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-      int output = open(trimWhiteSpace(separated_line[1]),
-			O_RDWR | O_CREAT | O_TRUNC, mode);
+      int output = open(separated_line[1], O_RDWR | O_CREAT | O_TRUNC, mode);
       if (output == -1) {
 	return EMPTY_COMMAND;
       } else {
