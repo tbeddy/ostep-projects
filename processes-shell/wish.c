@@ -205,9 +205,8 @@ int runCommands(command commands[], int command_count)
   }
   for (int i = 0; i < command_count; i++) {
     int rc_wait = waitpid((pid_t) child_pids[i], &status, 0);
-    printf("exit status: %d\n", status);
-    return status;
   }
+  return 0;
 }
 
 void runCommandLoop(FILE *fpinput)
