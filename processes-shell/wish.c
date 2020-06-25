@@ -221,10 +221,10 @@ void runCommandLoop(FILE *fpinput)
   printPrompt(fpinput);
 
   while ((linelen = getline(&line, &linecap, fpinput)) > 0) {
-    if (strcmp(line, "\n") == 0) {
-      exit(0);
-    } else {
-      line = strsep(&line, "\n");
+    // Skip line if it's blank
+    line = trimWhiteSpace(line);
+    if (strcmp(line, "") == 0) {
+      continue;
     }
 
     command commands[100];
