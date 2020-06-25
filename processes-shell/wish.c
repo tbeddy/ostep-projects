@@ -303,6 +303,7 @@ int main(int argc, char *argv[])
     // run batch file
     FILE *fp = fopen(argv[1], "r");
     if (fp == NULL) {
+      printError();
       exit(1);
     } else {
       runCommandLoop(fp);
@@ -311,6 +312,7 @@ int main(int argc, char *argv[])
     // enter interactive mode
     runCommandLoop(stdin);
   } else {
+    printError();
     exit(1);
   }
   return 0;
